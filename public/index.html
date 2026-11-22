@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Generate Image – DrizzTools</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light;--bg:#f6f5f2;--sf:#fff;--tx:#1a1a1a;--mu:#6b6b6b;--br:#e2e0da;--ac:#5b4bdb;--on:#fff;--code:#efede8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#141416;--sf:#1e1e22;--tx:#f0efec;--mu:#9a9aa2;--br:#34343a;--ac:#8b7dff;--on:#111;--code:#101012}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#141416;--sf:#1e1e22;--tx:#f0efec;--mu:#9a9aa2;--br:#34343a;--ac:#8b7dff;--on:#111;--code:#101012}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.w{max-width:880px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:8px 0 14px}h1 span{color:var(--ac)}h2{font-size:17px;margin:0 0 12px}
+.tabs{display:flex;gap:6px;margin-bottom:16px}
+.tab{flex:1;padding:10px;border:1px solid var(--br);background:var(--sf);color:var(--tx);border-radius:10px;font:inherit;cursor:pointer}
+.tab.on{background:var(--ac);color:var(--on);border-color:var(--ac)}
+.card{background:var(--sf);border:1px solid var(--br);border-radius:14px;padding:16px;margin-bottom:16px}
+label{display:block;font-size:13px;color:var(--mu);margin:10px 0 4px}
+input,select,textarea{width:100%;padding:10px;border:1px solid var(--br);border-radius:10px;background:var(--bg);color:var(--tx);font:inherit}
+textarea{resize:vertical;min-height:72px}
+.b{padding:11px 16px;border:0;border-radius:10px;background:var(--ac);color:var(--on);font:inherit;font-weight:600;cursor:pointer}
+.b:disabled{opacity:.5;cursor:wait}
+.g{padding:8px 12px;border:1px solid var(--br);border-radius:8px;background:transparent;color:var(--tx);font:inherit;font-size:14px;cursor:pointer}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#img{display:block;max-width:100%;height:auto;border-radius:12px;border:1px solid var(--br);margin:0 auto}
+.key{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--br)}
+code{word-break:break-all}
+pre{background:var(--code);padding:12px;border-radius:10px;overflow-x:auto;font-size:13px}
+.note{font-size:13px;color:var(--mu)}.hide{display:none}
+</style>
+</head>
+<body>
+<div class="w">
+<h1>Generate <span>Image</span></h1>
+<div class="tabs">
+<button class="tab on" data-t="gen">Generate</button>
+<button class="tab" data-t="keys">API Key</button>
+<button class="tab" data-t="docs">Dokumentasi</button>
+</div>
+
+<section id="gen">
+<div class="card">
+<label for="p">Deskripsi gambar (bahasa Inggeris biasanya lebih tepat)</label>
+<textarea id="p">a cat sitting on a windowsill at sunset</textarea>
+<label for="s">Gaya</label>
+<select id="s"><option value="none">Tiada</option><option value="realistic">Realistik</option><option value="anime">Anime</option><option value="watercolor">Cat air</option><option value="render3d">3D</option><option value="pixel">Pixel art</option></select>
+<div class="acts"><button class="b" id="go">Generate</button><button class="g" id="dl">Muat turun</button></div>
+<p class="note" id="info"></p>
+</div>
+<div class="card hide" id="out"><img id="img" alt="Hasil gambar"></div>
+</section>
+
+<section id="keys" class="hide">
+<div class="card">
+<h2>Cipta API key</h2>
+<label for="pw">Kata laluan admin</label><input id="pw" type="password" autocomplete="off">
+<label for="kn">Nama laman web / aplikasi</label><input id="kn" placeholder="contoh: kedai-saya.com">
+<div class="acts"><button class="b" id="mk">Cipta key</button></div>
+<p class="note" id="msg"></p>
+</div>
+<div class="card"><h2>Key yang dicipta</h2><div id="kl"></div>
+<p class="note">Untuk membatalkan key: salin ID-nya ke env var REVOKED_KEYS di Vercel (pisah dengan koma), kemudian redeploy.</p></div>
+</section>
+
+<section id="docs" class="hide">
+<div class="card">
+<h2>Guna dari laman web luar</h2>
+<pre id="ex"></pre>
+<p class="note">Parameter: <b>prompt</b> (maks 500 aksara), <b>style</b> (none, realistic, anime, watercolor, render3d, pixel), <b>seed</b> (nombor positif, pilihan), <b>format</b> (pilihan: base64 untuk JSON). Hasil lalai: gambar JPEG. Key dihantar melalui header Authorization atau X-API-Key. Ralat 429 bermaksud had harian dicapai.</p>
+</div>
+</section>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+let blob=null,url='';
+async function gen(){
+ const p=$('#p').value.trim();if(!p){$('#info').textContent='Tulis deskripsi dahulu.';return}
+ $('#go').disabled=true;$('#info').textContent='Menjana… (beberapa saat)';
+ try{
+  const r=await fetch('/api/site',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:p,style:$('#s').value})});
+  if(!r.ok){let m='Gagal menjana gambar';try{m=(await r.json()).error||m}catch(e){}$('#info').textContent=m;return}
+  blob=await r.blob();if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(blob);
+  $('#img').src=url;$('#out').classList.remove('hide');$('#info').textContent='Siap.';
+ }catch(e){$('#info').textContent='Tidak dapat menghubungi server.'}
+ finally{$('#go').disabled=false}
+}
+$('#go').onclick=gen;
+$('#dl').onclick=()=>{if(!blob){$('#info').textContent='Belum ada gambar.';return}const a=document.createElement('a');a.href=url;a.download='gambar.jpg';a.click()};
+
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t===b));
+ ['gen','keys','docs'].forEach(i=>$('#'+i).classList.toggle('hide',i!==b.dataset.t))});
+
+let keys=[];try{keys=JSON.parse(localStorage.getItem('pf_keys')||'[]')}catch(e){}
+function saveKeys(){try{localStorage.setItem('pf_keys',JSON.stringify(keys))}catch(e){}}
+function render(){
+ const L=$('#kl');L.textContent='';
+ if(!keys.length){const p=document.createElement('p');p.className='note';p.textContent='Belum ada key.';L.appendChild(p)}
+ keys.forEach((k,i)=>{
+  const d=document.createElement('div');d.className='key';const l=document.createElement('div');
+  const n=document.createElement('strong');n.textContent=k.name;
+  const c=document.createElement('div');const cd=document.createElement('code');cd.textContent=k.key.slice(0,14)+'••••'+k.key.slice(-6);c.appendChild(cd);
+  const m=document.createElement('div');m.className='note';m.textContent='ID: '+k.id+' · '+new Date(k.at).toLocaleDateString('ms-MY');
+  l.append(n,c,m);
+  const a=document.createElement('div');a.className='acts';a.style.margin='0';
+  const cp=document.createElement('button');cp.className='g';cp.textContent='Salin';
+  cp.onclick=async()=>{try{await navigator.clipboard.writeText(k.key);cp.textContent='Disalin ✓'}catch(e){cp.textContent='Gagal'}setTimeout(()=>cp.textContent='Salin',1500)};
+  const rm=document.createElement('button');rm.className='g';rm.textContent='Buang';
+  rm.onclick=()=>{keys.splice(i,1);saveKeys();render()};
+  a.append(cp,rm);d.append(l,a);L.appendChild(d)});
+ const k=keys[0]?keys[0].key:'KEY_ANDA';
+ $('#ex').textContent=`curl -X POST ${location.origin}/api/generate \\
+  -H "Authorization: Bearer ${k}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"prompt":"a red bicycle on a beach","style":"realistic"}' \\
+  -o gambar.jpg
+
+// JavaScript
+const r = await fetch("${location.origin}/api/generate", {
+  method: "POST",
+  headers: { "Authorization": "Bearer ${k}", "Content-Type": "application/json" },
+  body: JSON.stringify({ prompt: "a red bicycle on a beach", style: "realistic" })
+});
+if (!r.ok) throw new Error((await r.json()).error);
+const imgUrl = URL.createObjectURL(await r.blob());`;
+}
+$('#mk').onclick=async()=>{
+ const n=$('#kn').value.trim(),pw=$('#pw').value;if(!n||!pw){$('#msg').textContent='Isi nama dan kata laluan admin.';return}
+ $('#msg').textContent='Mencipta…';
+ try{
+  const r=await fetch('/api/keys',{method:'POST',headers:{'Content-Type':'application/json','x-admin-password':pw},body:JSON.stringify({name:n})});
+  const j=await r.json();
+  if(!r.ok){$('#msg').textContent=j.error||'Gagal';return}
+  keys.unshift({name:n,id:j.id,key:j.key,at:Date.now()});saveKeys();$('#kn').value='';$('#msg').textContent='Key berjaya dicipta.';render();
+ }catch(e){$('#msg').textContent='Tidak dapat menghubungi server.'}
+};
+render();
+</script>
+</body>
+</html>
